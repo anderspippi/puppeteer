@@ -34,7 +34,10 @@ export const xpathQuerySelector = (
 /**
  * @internal
  */
-export const xpathQuerySelectorAll = (root: Node, selector: string): Node[] => {
+export const xpathQuerySelectorAll = function* (
+  root: Node,
+  selector: string
+): Iterable<Node> {
   const doc = root.ownerDocument || document;
   const iterator = doc.evaluate(
     selector,
@@ -42,10 +45,8 @@ export const xpathQuerySelectorAll = (root: Node, selector: string): Node[] => {
     null,
     XPathResult.ORDERED_NODE_ITERATOR_TYPE
   );
-  const array: Node[] = [];
   let item;
   while ((item = iterator.iterateNext())) {
-    array.push(item);
+    yield item;
   }
-  return array;
 };

@@ -1,5 +1,5 @@
 /**
- * Copyright 2020 Google Inc. All rights reserved.
+ * Copyright 2022 Google Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,62 +15,95 @@
  */
 
 import {ElementHandle} from '../api/ElementHandle.js';
+import type PuppeteerUtil from '../injected/injected.js';
+import {assert} from '../util/assert.js';
 import type {Frame} from './Frame.js';
 import type {WaitForSelectorOptions} from './IsolatedWorld.js';
 import {MAIN_WORLD, PUPPETEER_WORLD} from './IsolatedWorlds.js';
+import {IterableUtil} from './IterableUtil.js';
+import {LazyArg} from './LazyArg.js';
+import {QueryHandler} from './QueryHandler.js';
 import type {AwaitableIterable} from './types.js';
 
 /**
  * @internal
  */
-export class QueryHandler {
+export class DOMQueryHandler extends QueryHandler {
+  static querySelectorAll?: (
+    node: Node,
+    selector: string,
+    PuppeteerUtil: PuppeteerUtil
+  ) => AwaitableIterable<Node>;
+  static querySelector?: (
+    node: Node,
+    selector: string,
+    PuppeteerUtil: PuppeteerUtil
+  ) => Node | null;
+
   /**
    * Queries for multiple nodes given a selector and {@link ElementHandle}.
    *
-   * Akin to {@link Document.prototype.querySelectorAll}.
+   * Akin to {@link Window.prototype.querySelectorAll}.
    */
-  static async *queryAll(
+  static override async *queryAll(
     element: ElementHandle<Node>,
     selector: string
   ): AwaitableIterable<ElementHandle<Node>> {
-    const result = await this.queryOne(element, selector);
-    if (result) {
-      yield result;
+    if (!this.querySelectorAll) {
+      return yield* super.queryAll(element, selector);
     }
+    const world = element.executionContext()._world;
+    assert(world);
+    const handle = await element.evaluateHandle(
+      this.querySelectorAll,
+      selector,
+      LazyArg.create(context => {
+        return context.puppeteerUtil;
+      })
+    );
+    yield* IterableUtil.transposeHandle(handle);
   }
 
   /**
    * Queries for a single node given a selector and {@link ElementHandle}.
    *
-   * Akin to {@link Document.prototype.querySelector}.
+   * Akin to {@link Window.prototype.querySelector}.
    */
-  static async queryOne(
+  static override async queryOne(
     element: ElementHandle<Node>,
     selector: string
   ): Promise<ElementHandle<Node> | null> {
-    const results = this.queryAll(element, selector);
-    let first = true;
-    let handle: ElementHandle<Node> | null = null;
-    for await (const result of results) {
-      if (!first) {
-        await result.dispose();
-        continue;
-      }
-      first = false;
-      handle = result;
+    if (!this.querySelector) {
+      return super.queryOne(element, selector);
     }
-    return handle;
+    const world = element.executionContext()._world;
+    assert(world);
+    const result = await element.evaluateHandle(
+      this.querySelector,
+      selector,
+      LazyArg.create(context => {
+        return context.puppeteerUtil;
+      })
+    );
+    if (!(result instanceof ElementHandle)) {
+      await result.dispose();
+      return null;
+    }
+    return result;
   }
 
   /**
    * Waits until a single node appears for a given selector and
    * {@link ElementHandle}.
    */
-  static async waitFor(
+  static override async waitFor(
     elementOrFrame: ElementHandle<Node> | Frame,
     selector: string,
     options: WaitForSelectorOptions
   ): Promise<ElementHandle<Node> | null> {
+    if (!this.querySelector) {
+      return super.waitFor(elementOrFrame, selector, options);
+    }
     let frame: Frame;
     let element: ElementHandle<Node> | undefined;
     if (!(elementOrFrame instanceof ElementHandle)) {
@@ -79,26 +112,11 @@ export class QueryHandler {
       frame = elementOrFrame.frame;
       element = await frame.worlds[PUPPETEER_WORLD].adoptHandle(elementOrFrame);
     }
-
-    const __querySelector = async (selector: string) => {
-      return this.queryOne(
-        element ?? (await frame.worlds[PUPPETEER_WORLD].document()),
-        selector
-      );
-    };
-
     const result = await frame.worlds[PUPPETEER_WORLD]._waitForSelectorInPage(
-      (_: Element, selector: string) => {
-        return (
-          globalThis as unknown as {
-            __querySelector(selector: string): Node | null;
-          }
-        ).__querySelector(selector);
-      },
+      this.querySelector,
       element,
       selector,
-      options,
-      new Map([['__querySelector', __querySelector]])
+      options
     );
     if (element) {
       await element.dispose();
