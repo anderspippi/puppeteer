@@ -108,10 +108,6 @@ export class ARIAQueryHandler extends QueryHandler {
     element: ElementHandle<Node>,
     selector: string
   ): Promise<ElementHandle<Node> | null> {
-    return (
-      (await IterableUtil.first(
-        ARIAQueryHandler.queryAll(element, selector)
-      )) ?? null
-    );
+    return (await IterableUtil.first(this.queryAll(element, selector))) ?? null;
   }
 }

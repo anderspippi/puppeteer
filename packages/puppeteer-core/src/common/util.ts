@@ -28,6 +28,7 @@ import {CommonEventEmitter} from './EventEmitter.js';
 import {ExecutionContext} from './ExecutionContext.js';
 import {JSHandle} from '../api/JSHandle.js';
 import {CDPJSHandle} from './JSHandle.js';
+import {AwaitableIterable} from './types.js';
 /**
  * @internal
  */
@@ -487,4 +488,66 @@ export function stringifyFunction(expression: Function): string {
     }
   }
   return functionText;
+}
+
+/**
+ * @internal
+ */
+export async function* deepChildren(
+  handle: ElementHandle<Node>
+): AwaitableIterable<ElementHandle<Node>> {
+  const walker = await handle.evaluateHandle(element => {
+    return document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT);
+  });
+  while (true) {
+    const handle = await walker.evaluateHandle(walker => {
+      const node = walker.nextNode();
+      if (!(node instanceof Element)) {
+        return;
+      }
+      return node.shadowRoot ?? node;
+    });
+    if (handle instanceof ElementHandle<Node>) {
+      yield handle;
+    } else {
+      break;
+    }
+  }
+  await walker.dispose();
+}
+
+/**
+ * @internal
+ */
+export async function* deepDescendents(
+  handle: ElementHandle<Node>
+): AwaitableIterable<ElementHandle<Node>> {
+  const walkers = await handle.evaluateHandle(element => {
+    return [document.createTreeWalker(element, NodeFilter.SHOW_ELEMENT)];
+  });
+  while (true) {
+    const handle = await walkers.evaluateHandle(walkers => {
+      while (walkers.length !== 0) {
+        const node = walkers[0]!.nextNode();
+        if (!(node instanceof Element)) {
+          walkers.shift();
+          continue;
+        }
+        if (!node.shadowRoot) {
+          return node;
+        }
+        walkers.push(
+          document.createTreeWalker(node.shadowRoot, NodeFilter.SHOW_ELEMENT)
+        );
+        return node.shadowRoot;
+      }
+      return;
+    });
+    if (handle instanceof ElementHandle<Node>) {
+      yield handle;
+    } else {
+      break;
+    }
+  }
+  await walkers.dispose();
 }

@@ -18,9 +18,9 @@ import {ARIAQueryHandler} from './AriaQueryHandler.js';
 import {PierceQueryHandler} from './PierceQueryHandler.js';
 import {XPathQueryHandler} from './XPathQueryHandler.js';
 import {TextQueryHandler} from './TextQueryHandler.js';
-import {CSSQueryHandler} from './CSSQueryHandler.js';
 import type {QueryHandler} from './QueryHandler.js';
 import {customQueryHandlers} from './CustomQueryHandler.js';
+import {PQueryHandler} from './PQueryHandler.js';
 
 export const BUILTIN_QUERY_HANDLERS = Object.freeze({
   aria: ARIAQueryHandler,
@@ -64,5 +64,5 @@ export function getQueryHandlerAndSelector(selector: string): {
       }
     }
   }
-  return {updatedSelector: selector, queryHandler: CSSQueryHandler};
+  return {updatedSelector: selector, queryHandler: PQueryHandler};
 }
