@@ -82,9 +82,9 @@
       "dependencies": [
         "build:tsc"
       ],
-      "clean": false,
       "files": [
-        "third_party/**"
+        ".wireit/third_party/**",
+        "rollup.third_party.config.mjs"
       ],
       "output": [
         "lib/esm/third_party/**",
@@ -152,8 +152,9 @@
         "third_party/**"
       ],
       "output": [
-        "lib/esm/**",
-        "lib/cjs/**"
+        ".wireit/third_party/**",
+        "lib/cjs/**",
+        "lib/esm/**"
       ]
     }
   },
